@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>教師節特別企劃：Bug 救援大作戰</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #121212;
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 三欄式總版面 */
+        #main-layout {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            max-width: 1520px;
+        }
+
+        /* 左右技能側邊欄 (320px) */
+        .side-panel {
+            width: 320px;
+            background: #181818;
+            border: 2px solid #00ff41;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.15);
+            padding: 15px;
+            box-sizing: border-box;
+            border-radius: 6px;
+        }
+
+        .panel-title {
+            color: #00ff41;
+            font-size: 16px;
+            margin-top: 0;
+            margin-bottom: 12px;
+            text-align: center;
+            border-bottom: 1px dashed #00ff41;
+            padding-bottom: 6px;
+            letter-spacing: 1px;
+        }
+
+        /* 技能卡片樣式 */
+        .skill-card {
+            background: #222;
+            border: 1px solid #333;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+
+        .skill-card.unlocked {
+            border-color: #00ff41;
+            background: #1a2a1d;
+        }
+
+        .skill-card.maxed {
+            border-color: #ff0055;
+            background: #2a1a20;
+        }
+
+        .skill-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            font-size: 13px;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .skill-level {
+            font-size: 11px;
+            color: #00ff41;
+        }
+
+        .skill-card.maxed .skill-level {
+            color: #ff0055;
+        }
+
+        .skill-desc {
+            font-size: 11px;
+            color: #aaa;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        /* 中央遊戲區域 */
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
+            border: 2px solid #00ff41;
+            border-radius: 4px;
+        }
+
+        canvas {
+            background-color: #0d0d0d;
+            display: block;
+        }
+
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 15px;
+            color: #00ff41;
+            text-shadow: 0 0 5px #00ff41;
+            pointer-events: none;
+            line-height: 1.5;
+        }
+
+        /* 升級選單彈窗 */
+        #upgrade-menu {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #00ff41;
+            padding: 20px;
+            text-align: center;
+            width: 380px;
+            box-shadow: 0 0 20px #00ff41;
+            border-radius: 6px;
+        }
+
+        .option-btn {
+            background: #111;
+            color: #00ff41;
+            border: 1px solid #00ff41;
+            padding: 12px;
+            margin: 8px 0;
+            width: 100%;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 13px;
+            text-align: left;
+            transition: 0.2s;
+            border-radius: 4px;
+        }
+
+        .option-btn:hover {
+            background: #00ff41;
+            color: #000;
+            font-weight: bold;
+        }
+
+        /* 勝利卡片 */
+        #win-card {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #111;
+            border: 3px solid #ff0055;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 0 30px #ff0055;
+            max-width: 500px;
+            border-radius: 6px;
+        }
+
+        .card-title {
+            font-size: 24px;
+            color: #ff0055;
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="main-layout">
+    <!-- 左側面板：主動武器 -->
+    <div class="side-panel" id="left-panel">
+        <h3 class="panel-title">⚔️ 主動武器</h3>
+        
+        <div class="skill-card unlocked" id="card-semicolon">
+            <div class="skill-header">
+                <span>分號武器</span>
+                <span class="skill-level" id="lvl-semicolon">Lv.1</span>
+            </div>
+            <div class="skill-desc" id="desc-semicolon">發射分號，傷害 23</div>
+        </div>
+
+        <div class="skill-card" id="card-firewall">
+            <div class="skill-header">
+                <span>🛡️ GFW 防火牆</span>
+                <span class="skill-level" id="lvl-firewall">[未解鎖]</span>
+            </div>
+            <div class="skill-desc" id="desc-firewall">圍繞旋轉的防護牆，擊退並傷害 Bug</div>
+        </div>
+
+        <div class="skill-card" id="card-nullPointer">
+            <div class="skill-header">
+                <span>☠️ NullPointer 黑洞</span>
+                <span class="skill-level" id="lvl-nullPointer">[未解鎖]</span>
+            </div>
+            <div class="skill-desc" id="desc-nullPointer">召喚黑洞強行吸引並抹除區域內 Bug</div>
+        </div>
+
+        <div class="skill-card" id="card-gotoStmt">
+            <div class="skill-header">
+                <span>🔗 GOTO 語句彈</span>
+                <span class="skill-level" id="lvl-gotoStmt">[未解鎖]</span>
+            </div>
+            <div class="skill-desc" id="desc-gotoStmt">發射 GOTO 指令將 Bug 強制傳送到邊緣</div>
+        </div>
+
+        <div class="skill-card" id="card-gitCommit">
+            <div class="skill-header">
+                <span>⚙️ Git Commit 存檔爆破</span>
+                <span class="skill-level" id="lvl-gitCommit">[未解鎖]</span>
+            </div>
+            <div class="skill-desc" id="desc-gitCommit">在腳下留下存檔節點，延遲 1 秒後產生範圍爆炸</div>
+        </div>
+
+        <div class="skill-card" id="card-wifiPulse">
+            <div class="skill-header">
+                <span>📶 校園 Wi-Fi 訊號波</span>
+                <span class="skill-level" id="lvl-wifiPulse">[未解鎖]</span>
+            </div>
+            <div class="skill-desc" id="desc-wifiPulse">向四周擴散環形衝擊波，擊退並減速敵人</div>
+        </div>
+    </div>
+
+    <!-- 中央遊戲區域 -->
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <!-- 遊戲 UI -->
+        <div id="ui">
+            <div>HP: <span id="hp">100</span> / <span id="max-hp">100</span> | Level: <span id="level">1</span></div>
+            <div>EXP: <span id="exp-current">0</span> / <span id="exp-next">10</span></div>
+            <div>密碼碎片進度: [<span id="fragments">0</span> / 10] 🔒</div>
+        </div>
+
+        <!-- 升級選單 -->
+        <div id="upgrade-menu">
+            <h3 style="color:#00ff41; margin-top:0;">SYSTEM UPGRADE</h3>
+            <p style="color:#aaa; font-size:12px;">選擇一個系統優化項目：</p>
+            <div id="options-container"></div>
+        </div>
+
+        <!-- 勝利教師節賀卡 -->
+        <div id="win-card">
+            <div class="card-title">🎉 HAPPY TEACHERS DAY 🎉</div>
+            <p style="line-height: 1.6; color: #ddd;">
+                親愛的電腦老師：<br><br>
+                感謝您一直以來在程式道路上的指引與教導！<br>
+                恭喜您成功清除所有系統 Bug 並解鎖這張賀卡。<br><br>
+                祝您 **教師節快樂**！<br>
+                程式永遠一次通過、永遠沒有 Bug！
+            </p>
+            <button onclick="location.reload()" class="option-btn" style="border-color:#ff0055; color:#ff0055; text-align:center;">再玩一次</button>
+        </div>
+    </div>
+
+    <!-- 右側面板：被動加成 -->
+    <div class="side-panel" id="right-panel">
+        <h3 class="panel-title">⚡ 被動加成</h3>
+        
+        <div class="skill-card" id="card-coffee">
+            <div class="skill-header">
+                <span>☕ 黑咖啡超頻</span>
+                <span class="skill-level" id="lvl-coffee">[未解鎖]</span>
+            </div>
+            <div class="skill-desc" id="desc-coffee">提升移動速度與全技能冷卻速率</div>
+        </div>
+
+        <div class="skill-card" id="card-ssd">
+            <div class="skill-header">
+                <span>💽 SSD 固態硬碟</span>
+                <span class="skill-level" id="lvl-ssd">[未解鎖]</span>
+            </div>
+            <div class="skill-desc" id="desc-ssd">大幅擴大寶石與碎片的吸附範圍</div>
+        </div>
+
+        <div class="skill-card" id="card-bell">
+            <div class="skill-header">
+                <span>🔔 下課鐘聲防護</span>
+                <span class="skill-level" id="lvl-bell">[未解鎖]</span>
+            </div>
+            <div class="skill-desc" id="desc-bell">定時獲得短暫的無敵防禦護盾</div>
+        </div>
+
+        <div class="skill-card" id="card-cheatSheet">
+            <div class="skill-header">
+                <span>🧠 考試小抄</span>
+                <span class="skill-level" id="lvl-cheatSheet">[未解鎖]</span>
+            </div>
+            <div class="skill-desc" id="desc-cheatSheet">增加發射分號時觸發暴擊傷害的概率</div>
+        </div>
+
+        <div class="skill-card" id="card-powerBank">
+            <div class="skill-header">
+                <span>🔋 行動電源充能</span>
+                <span class="skill-level" id="lvl-powerBank">[未解鎖]</span>
+            </div>
+            <div class="skill-desc" id="desc-powerBank">提升最大生命值 (+30 HP) 並立即補血</div>
+        </div>
+
+        <div class="skill-card" id="card-stackOverflow">
+            <div class="skill-header">
+                <span>📜 Stack Overflow 溢位</span>
+                <span class="skill-level" id="lvl-stackOverflow">[未解鎖]</span>
+            </div>
+            <div class="skill-desc" id="desc-stackOverflow">發射分號時有概率額外多發射一組子彈</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// --- 遊戲狀態 ---
+let isPaused = false;
+let player = {
+    x: 400, y: 300, size: 15, baseSpeed: 3.5, speed: 3.5,
+    hp: 100, maxHp: 100,
+    level: 1, exp: 0, nextExp: 10,
+    magnetRange: 60,
+    isInvincible: false
+};
+
+// 技能等級管理
+let skills = {
+    semicolon: 1,     // Max 10 -> nuke
+    firewall: 0,      // Max 5
+    nullPointer: 0,   // Max 5
+    gotoStmt: 0,      // Max 5
+    gitCommit: 0,     // Max 5
+    wifiPulse: 0,     // Max 5
+    coffee: 0,        // Max 5
+    ssd: 0,           // Max 5
+    bell: 0,          // Max 5
+    cheatSheet: 0,    // Max 5
+    powerBank: 0,     // Max 5
+    stackOverflow: 0  // Max 5
+};
+
+let keys = {};
+let enemies = [];
+let bullets = [];
+let expGems = [];
+let blackHoles = [];
+let gotoProjectiles = [];
+let gitBombs = [];
+let wifiPulses = [];
+let fragmentsCollected = 0;
+let nukeActive = false;
+
+// 鍵盤監聽
+window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+// --- 時間觸發計時器 ---
+let lastShootTime = 0;
+let lastNullPointerTime = 0;
+let lastGotoTime = 0;
+let lastGitCommitTime = 0;
+let lastWifiPulseTime = 0;
+let firewallAngle = 0;
+let bellTimer = 0;
+
+function updateSkillsTimers(now) {
+    let cdReduction = 1 - (skills.coffee * 0.08);
+
+    // 1. 分號射擊 / nuke (nuke 頻率為 1.2 秒)
+    let semicolonCd = (skills.semicolon >= 10 ? 1200 : 700) * cdReduction;
+    if (now - lastShootTime >= semicolonCd) {
+        shootSemicolon();
+        lastShootTime = now;
+    }
+
+    // 2. NullPointer 黑洞
+    if (skills.nullPointer > 0) {
+        let nullCd = (4000 - skills.nullPointer * 400) * cdReduction;
+        if (now - lastNullPointerTime >= nullCd) {
+            spawnBlackHole();
+            lastNullPointerTime = now;
+        }
+    }
+
+    // 3. GOTO 語句彈
+    if (skills.gotoStmt > 0) {
+        let gotoCd = (3000 - skills.gotoStmt * 300) * cdReduction;
+        if (now - lastGotoTime >= gotoCd) {
+            shootGOTO();
+            lastGotoTime = now;
+        }
+    }
+
+    // 4. Git Commit 存檔點
+    if (skills.gitCommit > 0) {
+        let gitCd = (3500 - skills.gitCommit * 300) * cdReduction;
+        if (now - lastGitCommitTime >= gitCd) {
+            dropGitCommit();
+            lastGitCommitTime = now;
+        }
+    }
+
+    // 5. 校園 Wi-Fi 訊號波
+    if (skills.wifiPulse > 0) {
+        let wifiCd = (4500 - skills.wifiPulse * 400) * cdReduction;
+        if (now - lastWifiPulseTime >= wifiCd) {
+            triggerWifiPulse();
+            lastWifiPulseTime = now;
+        }
+    }
+
+    // 6. 下課鐘聲無敵
+    if (skills.bell > 0) {
+        bellTimer += 16;
+        let interval = (15000 - skills.bell * 1000);
+        if (bellTimer >= interval) {
+            player.isInvincible = true;
+            setTimeout(() => player.isInvincible = false, 2000 + skills.bell * 500);
+            bellTimer = 0;
+        }
+    }
+}
+
+// --- 技能發射邏輯 ---
+function shootSemicolon() {
+    if (enemies.length === 0) return;
+
+    let closest = enemies.reduce((nearest, enemy) => {
+        let dist = Math.hypot(enemy.x - player.x, enemy.y - player.y);
+        return dist < nearest.dist ? { enemy, dist } : nearest;
+    }, { enemy: null, dist: Infinity });
+
+    if (closest.enemy) {
+        let angle = Math.atan2(closest.enemy.y - player.y, closest.enemy.x - player.x);
+        
+        if (skills.semicolon >= 10) {
+            triggerNuke();
+        } else {
+            let isCrit = Math.random() < (skills.cheatSheet * 0.1);
+            let dmg = (15 + skills.semicolon * 8) * (isCrit ? 2.5 : 1);
+
+            bullets.push({
+                x: player.x, y: player.y,
+                vx: Math.cos(angle) * 8, vy: Math.sin(angle) * 8,
+                text: ';', size: 16 + skills.semicolon * 2,
+                damage: dmg, isCrit: isCrit
+            });
+
+            // 雙倍發射判定 (Stack Overflow)
+            if (skills.stackOverflow > 0 && Math.random() < (skills.stackOverflow * 0.15)) {
+                bullets.push({
+                    x: player.x, y: player.y,
+                    vx: Math.cos(angle + 0.3) * 8, vy: Math.sin(angle + 0.3) * 8,
+                    text: ';', size: 16 + skills.semicolon * 2,
+                    damage: dmg, isCrit: isCrit
+                });
+            }
+        }
+    }
+}
+
+function spawnBlackHole() {
+    let rx = Math.random() * (canvas.width - 200) + 100;
+    let ry = Math.random() * (canvas.height - 200) + 100;
+    blackHoles.push({
+        x: rx, y: ry,
+        radius: 30 + skills.nullPointer * 10,
+        duration: 180
+    });
+}
+
+function shootGOTO() {
+    if (enemies.length === 0) return;
+    let target = enemies[Math.floor(Math.random() * enemies.length)];
+    let angle = Math.atan2(target.y - player.y, target.x - player.x);
+    gotoProjectiles.push({
+        x: player.x, y: player.y,
+        vx: Math.cos(angle) * 10, vy: Math.sin(angle) * 10,
+        life: 60
+    });
+}
+
+function dropGitCommit() {
+    gitBombs.push({
+        x: player.x, y: player.y,
+        timer: 60,
+        radius: 60 + skills.gitCommit * 15,
+        damage: 30 + skills.gitCommit * 15
+    });
+}
+
+function triggerWifiPulse() {
+    wifiPulses.push({
+        x: player.x, y: player.y,
+        radius: 10,
+        maxRadius: 100 + skills.wifiPulse * 30,
+        damage: 15 + skills.wifiPulse * 5
+    });
+}
+
+function triggerNuke() {
+    if (nukeActive) return;
+    nukeActive = true;
+    
+    ctx.fillStyle = 'rgba(0, 255, 65, 0.35)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    setTimeout(() => {
+        enemies.forEach(e => {
+            expGems.push({ 
+                x: e.x, y: e.y, 
+                isFragment: Math.random() < 0.12 
+            });
+        });
+        enemies = [];
+        nukeActive = false;
+    }, 120);
+}
+
+// --- 敵人生成 ---
+function spawnEnemy() {
+    if (enemies.length > 55) return;
+    let x = Math.random() < 0.5 ? -20 : canvas.width + 20;
+    let y = Math.random() * canvas.height;
+    let enemyMaxHp = 15 + player.level * 4;
+    enemies.push({
+        x, y, size: 12, speed: 1.2 + Math.random() * 0.8,
+        hp: enemyMaxHp, maxHp: enemyMaxHp, text: 'BUG'
+    });
+}
+setInterval(spawnEnemy, 800);
+
+// --- 遊戲主要迴圈 ---
+function gameLoop(timestamp) {
+    if (!isPaused) {
+        update(timestamp);
+        draw();
+    }
+    requestAnimationFrame(gameLoop);
+}
+
+function update(timestamp) {
+    updateSkillsTimers(timestamp);
+
+    // 1. 移動玩家
+    if ((keys['w'] || keys['arrowup']) && player.y > 0) player.y -= player.speed;
+    if ((keys['s'] || keys['arrowdown']) && player.y < canvas.height) player.y += player.speed;
+    if ((keys['a'] || keys['arrowleft']) && player.x > 0) player.x -= player.speed;
+    if ((keys['d'] || keys['arrowright']) && player.x < canvas.width) player.x += player.speed;
+
+    // 2. GFW 防火牆旋轉
+    firewallAngle += 0.04;
+
+    // 3. 子彈 (分號)
+    bullets.forEach((b, index) => {
+        b.x += b.vx;
+        b.y += b.vy;
+        if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
+            bullets.splice(index, 1);
+        }
+    });
+
+    // 4. GOTO 傳送彈
+    gotoProjectiles.forEach((g, index) => {
+        g.x += g.vx;
+        g.y += g.vy;
+        g.life--;
+        if (g.life <= 0) gotoProjectiles.splice(index, 1);
+    });
+
+    // 5. Git Commit 存檔點
+    gitBombs.forEach((gb, gbIndex) => {
+        gb.timer--;
+        if (gb.timer <= 0) {
+            enemies.forEach(e => {
+                if (Math.hypot(gb.x - e.x, gb.y - e.y) < gb.radius) {
+                    e.hp -= gb.damage;
+                }
+            });
+            gitBombs.splice(gbIndex, 1);
+        }
+    });
+
+    // 6. Wi-Fi 衝擊波
+    wifiPulses.forEach((wp, wpIndex) => {
+        wp.radius += 5;
+        enemies.forEach(e => {
+            let dist = Math.hypot(wp.x - e.x, wp.y - e.y);
+            if (Math.abs(dist - wp.radius) < 15) {
+                e.hp -= wp.damage * 0.1;
+                let angle = Math.atan2(e.y - wp.y, e.x - wp.x);
+                e.x += Math.cos(angle) * 4;
+                e.y += Math.sin(angle) * 4;
+            }
+        });
+        if (wp.radius >= wp.maxRadius) wifiPulses.splice(wpIndex, 1);
+    });
+
+    // 7. 黑洞
+    blackHoles.forEach((bh, bhIndex) => {
+        bh.duration--;
+        enemies.forEach(e => {
+            let dist = Math.hypot(bh.x - e.x, bh.y - e.y);
+            if (dist < bh.radius + 50) {
+                e.x += (bh.x - e.x) * 0.08;
+                e.y += (bh.y - e.y) * 0.08;
+                e.hp -= 1.5;
+            }
+        });
+        if (bh.duration <= 0) blackHoles.splice(bhIndex, 1);
+    });
+
+    // 8. 敵人 & 碰撞檢測
+    enemies.forEach((e, eIndex) => {
+        let angle = Math.atan2(player.y - e.y, player.x - e.x);
+        e.x += Math.cos(angle) * e.speed;
+        e.y += Math.sin(angle) * e.speed;
+
+        // GFW 防火牆
+        if (skills.firewall > 0) {
+            let orbCount = Math.min(3 + skills.firewall, 8);
+            for (let i = 0; i < orbCount; i++) {
+                let a = firewallAngle + (i * Math.PI * 2 / orbCount);
+                let fx = player.x + Math.cos(a) * (50 + skills.firewall * 5);
+                let fy = player.y + Math.sin(a) * (50 + skills.firewall * 5);
+                if (Math.hypot(fx - e.x, fy - e.y) < 20) {
+                    e.hp -= 0.8 + skills.firewall * 0.4;
+                    e.x -= Math.cos(angle) * 15;
+                    e.y -= Math.sin(angle) * 15;
+                }
+            }
+        }
+
+        // GOTO 觸發
+        gotoProjectiles.forEach((g, gIndex) => {
+            if (Math.hypot(g.x - e.x, g.y - e.y) < 20) {
+                e.x = Math.random() < 0.5 ? 10 : canvas.width - 10;
+                e.y = Math.random() * canvas.height;
+                e.hp -= 20;
+                gotoProjectiles.splice(gIndex, 1);
+            }
+        });
+
+        // 撞到玩家
+        if (Math.hypot(player.x - e.x, player.y - e.y) < player.size + e.size) {
+            if (!player.isInvincible) {
+                player.hp -= 0.15;
+                document.getElementById('hp').innerText = Math.max(0, Math.floor(player.hp));
+                if (player.hp <= 0) alert('系統崩潰！請重新整理頁面再試一次。');
+            }
+        }
+
+        // 被分號打到
+        bullets.forEach((b, bIndex) => {
+            if (Math.hypot(b.x - e.x, b.y - e.y) < b.size + e.size) {
+                e.hp -= b.damage;
+                bullets.splice(bIndex, 1);
+            }
+        });
+
+        // 敵人死亡
+        if (e.hp <= 0) {
+            enemies.splice(eIndex, 1);
+            let isFrag = (skills.semicolon >= 4) && (Math.random() < 0.04);
+            expGems.push({ x: e.x, y: e.y, isFragment: isFrag });
+        }
+    });
+
+    // 9. 拾取 Gems & 碎片
+    expGems.forEach((g, gIndex) => {
+        let dist = Math.hypot(player.x - g.x, player.y - g.y);
+        if (dist < player.magnetRange) {
+            g.x += (player.x - g.x) * 0.12;
+            g.y += (player.y - g.y) * 0.12;
+        }
+        if (dist < player.size + 10) {
+            if (g.isFragment && fragmentsCollected < 10) {
+                fragmentsCollected++;
+                document.getElementById('fragments').innerText = fragmentsCollected;
+                if (fragmentsCollected === 10) triggerWin();
+            }
+            
+            player.exp += 3;
+            document.getElementById('exp-current').innerText = player.exp;
+            
+            if (player.exp >= player.nextExp) {
+                levelUp();
+            }
+            expGems.splice(gIndex, 1);
+        }
+    });
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 畫 Git Commit 點
+    gitBombs.forEach(gb => {
+        ctx.strokeStyle = '#00ff41';
+        ctx.beginPath();
+        ctx.arc(gb.x, gb.y, gb.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = '#00ff41';
+        ctx.font = '10px monospace';
+        ctx.fillText('COMMIT', gb.x - 18, gb.y + 3);
+    });
+
+    // 畫 Wi-Fi 衝擊波
+    wifiPulses.forEach(wp => {
+        ctx.strokeStyle = 'rgba(0, 210, 255, 0.6)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(wp.x, wp.y, wp.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.lineWidth = 1;
+    });
+
+    // 畫黑洞 (NullPointer)
+    blackHoles.forEach(bh => {
+        ctx.fillStyle = 'rgba(150, 0, 255, 0.4)';
+        ctx.beginPath();
+        ctx.arc(bh.x, bh.y, bh.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#a000ff';
+        ctx.stroke();
+    });
+
+    // 畫 GFW 防火牆
+    if (skills.firewall > 0) {
+        let orbCount = Math.min(3 + skills.firewall, 8);
+        ctx.fillStyle = '#00d2ff';
+        for (let i = 0; i < orbCount; i++) {
+            let a = firewallAngle + (i * Math.PI * 2 / orbCount);
+            let fx = player.x + Math.cos(a) * (50 + skills.firewall * 5);
+            let fy = player.y + Math.sin(a) * (50 + skills.firewall * 5);
+            ctx.beginPath();
+            ctx.arc(fx, fy, 8, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // 畫 GOTO 彈
+    ctx.fillStyle = '#ffcc00';
+    ctx.font = '12px monospace';
+    gotoProjectiles.forEach(g => {
+        ctx.fillText('GOTO', g.x, g.y);
+    });
+
+    // 畫經驗寶石與碎片
+    expGems.forEach(g => {
+        ctx.fillStyle = g.isFragment ? '#ff0055' : '#00ff41';
+        ctx.beginPath();
+        ctx.arc(g.x, g.y, g.isFragment ? 7 : 4, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // 畫玩家 & 無敵光罩
+    if (player.isInvincible) {
+        ctx.strokeStyle = '#ffff00';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.size + 8, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillText('🔔', player.x - 8, player.y - 20);
+    }
+
+    ctx.fillStyle = '#00ff41';
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.font = '14px monospace';
+    ctx.fillText('⌨️', player.x - 7, player.y + 4);
+
+    // 畫子彈 (分號)
+    bullets.forEach(b => {
+        ctx.fillStyle = b.isCrit ? '#ff0055' : '#ffff00';
+        ctx.font = (b.size + (b.isCrit ? 6 : 0)) + 'px monospace';
+        ctx.fillText(b.text, b.x, b.y);
+    });
+
+    // 畫敵人 (BUG) 與血條
+    enemies.forEach(e => {
+        ctx.fillStyle = '#ff3333';
+        ctx.font = '14px monospace';
+        ctx.fillText(e.text, e.x - 10, e.y + 5);
+
+        if (e.hp < e.maxHp) {
+            let barW = 26;
+            let barH = 3;
+            let barX = e.x - barW / 2;
+            let barY = e.y - 12;
+
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(barX, barY, barW, barH);
+
+            let hpRatio = Math.max(0, e.hp / e.maxHp);
+            ctx.fillStyle = hpRatio > 0.3 ? '#00ff41' : '#ff3333';
+            ctx.fillRect(barX, barY, barW * hpRatio, barH);
+        }
+    });
+}
+
+// --- 升級系統 (精確加權抽樣機制) ---
+function levelUp() {
+    player.level++;
+    player.exp = 0;
+    player.nextExp = 10 + (player.level - 1) * 6;
+    
+    document.getElementById('level').innerText = player.level;
+    document.getElementById('exp-current').innerText = player.exp;
+    document.getElementById('exp-next').innerText = player.nextExp;
+    
+    isPaused = true;
+    showUpgradeMenu();
+}
+
+function showUpgradeMenu() {
+    const menu = document.getElementById('upgrade-menu');
+    const container = document.getElementById('options-container');
+    container.innerHTML = '';
+
+    let pool = [
+        { key: 'semicolon', name: '分號武器', max: 10, desc: skills.semicolon === 9 ? '🔥 終極突破：nuke(10) 指令爆破全螢幕敵人！' : `升級傷害至 ${23 + skills.semicolon * 8}，並增大發射尺寸`, action: () => skills.semicolon++ },
+        { key: 'firewall', name: '🛡️ GFW 防火牆', max: 5, desc: `新增/強化圍繞旋轉的防護光球 (${skills.firewall + 3} 顆)`, action: () => skills.firewall++ },
+        { key: 'nullPointer', name: '☠️ NullPointer 黑洞', max: 5, desc: `縮短黑洞冷卻並擴大抹除半徑 (${40 + skills.nullPointer * 10}px)`, action: () => skills.nullPointer++ },
+        { key: 'gotoStmt', name: '🔗 GOTO 語句彈', max: 5, desc: `發射 GOTO 指令將敵人擊退並強制傳送至邊緣`, action: () => skills.gotoStmt++ },
+        { key: 'gitCommit', name: '⚙️ Git Commit 存檔點', max: 5, desc: `在腳下釋放 Commit 點，1 秒後產生大範圍爆破`, action: () => skills.gitCommit++ },
+        { key: 'wifiPulse', name: '📶 校園 Wi-Fi 衝擊波', max: 5, desc: `向四周擴散環形脈衝，推開並傷害 Bug`, action: () => skills.wifiPulse++ },
+        { key: 'coffee', name: '☕ 黑咖啡超頻', max: 5, desc: `提升移動速度並縮短全技能冷卻時間 -8%`, action: () => { skills.coffee++; player.speed = player.baseSpeed + skills.coffee * 0.4; } },
+        { key: 'ssd', name: '💽 SSD 固態硬碟', max: 5, desc: `擴大物品與密碼碎片的吸附範圍 (+30px)`, action: () => { skills.ssd++; player.magnetRange = 60 + skills.ssd * 30; } },
+        { key: 'bell', name: '🔔 下課鐘聲防護', max: 5, desc: `提升無敵護盾持續時間至 ${2.5 + skills.bell * 0.5} 秒`, action: () => skills.bell++ },
+        { key: 'cheatSheet', name: '🧠 考試小抄', max: 5, desc: `提升發射分號時觸發 2.5 倍暴擊率 (+10%)`, action: () => skills.cheatSheet++ },
+        { key: 'powerBank', name: '🔋 行動電源充能', max: 5, desc: `提升最大生命值 (+30 HP) 並補滿血量`, action: () => { skills.powerBank++; player.maxHp += 30; player.hp = player.maxHp; document.getElementById('hp').innerText = Math.floor(player.hp); document.getElementById('max-hp').innerText = player.maxHp; } },
+        { key: 'stackOverflow', name: '📜 Stack Overflow 溢位', max: 5, desc: `發射分號時有 15% 概率額外多發射一組`, action: () => skills.stackOverflow++ }
+    ];
+
+    // 取得所有未滿級技能
+    let available = pool.filter(p => skills[p.key] < p.max);
+    let choices = [];
+    let tempPool = [...available];
+
+    // --- 加權輪盤不重複抽樣演算法 ---
+    while (choices.length < 3 && tempPool.length > 0) {
+        let totalWeight = 0;
+        
+        // 1. 計算當前候選池中每個技能的動態權重
+        tempPool.forEach(p => {
+            let w = 1.0; // 基礎權重
+            if (p.key === 'semicolon') {
+                w = 2.0; // 分號權重為 2
+            } else if (skills[p.key] === 0) {
+                w += 0.5; // 未獲得技能 (Lv.0) 加 0.5 權重 (變成 1.5)
+            }
+            p._weight = w;
+            totalWeight += w;
+        });
+
+        // 2. 擲骰子取隨機數
+        let rand = Math.random() * totalWeight;
+        let cumulative = 0;
+        let selectedIndex = 0;
+
+        for (let i = 0; i < tempPool.length; i++) {
+            cumulative += tempPool[i]._weight;
+            if (rand <= cumulative) {
+                selectedIndex = i;
+                break;
+            }
+        }
+
+        // 3. 選中技能並從臨時池中移除
+        choices.push(tempPool[selectedIndex]);
+        tempPool.splice(selectedIndex, 1);
+    }
+
+    // 渲染三選一按鈕
+    choices.forEach(opt => {
+        let btn = document.createElement('button');
+        btn.className = 'option-btn';
+        btn.innerHTML = `<strong>[${opt.name}]</strong><br><span style="color:#aaa; font-size:11px;">${opt.desc}</span>`;
+        btn.onclick = () => {
+            opt.action();
+            updateSidePanels();
+            menu.style.display = 'none';
+            isPaused = false;
+        };
+        container.appendChild(btn);
+    });
+
+    menu.style.display = 'block';
+}
+
+// --- 動態更新外側技能卡片內容 ---
+function updateSidePanels() {
+    let cdReduction = 1 - (skills.coffee * 0.08);
+
+    // 1. 分號武器
+    let cardSemi = document.getElementById('card-semicolon');
+    let lvlSemi = document.getElementById('lvl-semicolon');
+    let descSemi = document.getElementById('desc-semicolon');
+    if (skills.semicolon >= 10) {
+        cardSemi.className = "skill-card maxed";
+        lvlSemi.innerText = "MAX (Lv.10)";
+        descSemi.innerText = "🔥 終極突破：nuke(10) 指令爆破全螢幕敵人！";
+    } else {
+        lvlSemi.innerText = `Lv.${skills.semicolon}`;
+        descSemi.innerText = `單發傷害: ${15 + skills.semicolon * 8} | 冷卻: ${((700 * cdReduction)/1000).toFixed(2)}s`;
+    }
+
+    // 2. GFW 防火牆
+    updateCard('firewall', skills.firewall, 5, `光球數量: ${3 + skills.firewall} 顆 | 碰撞傷害: ${(0.8 + skills.firewall * 0.4).toFixed(1)}/幀`);
+
+    // 3. NullPointer 黑洞
+    updateCard('nullPointer', skills.nullPointer, 5, `吸引半徑: ${30 + skills.nullPointer * 10}px | 冷卻: ${((4000 - skills.nullPointer * 400) * cdReduction / 1000).toFixed(1)}s`);
+
+    // 4. GOTO 語句
+    updateCard('gotoStmt', skills.gotoStmt, 5, `強行擊退並傳送 Bug 至畫面最外側邊緣`);
+
+    // 5. Git Commit (更新範圍與冷卻)
+    let gitCd = ((3500 - skills.gitCommit * 300) * cdReduction / 1000).toFixed(1);
+    let gitRad = 60 + skills.gitCommit * 15;
+    let gitDmg = 30 + skills.gitCommit * 15;
+    updateCard('gitCommit', skills.gitCommit, 5, `傷害: ${gitDmg} | 範圍: ${gitRad}px | 冷卻: ${gitCd}s`);
+
+    // 6. Wi-Fi 衝擊波 (更新範圍與冷卻)
+    let wifiCd = ((4500 - skills.wifiPulse * 400) * cdReduction / 1000).toFixed(1);
+    let wifiRad = 100 + skills.wifiPulse * 30;
+    updateCard('wifiPulse', skills.wifiPulse, 5, `最大範圍: ${wifiRad}px | 冷卻: ${wifiCd}s | 向外擴散脈衝`);
+
+    // 7. 黑咖啡超頻
+    updateCard('coffee', skills.coffee, 5, `移速加成: +${(skills.coffee * 11.4).toFixed(0)}% | 全技能 CD 縮短: -${skills.coffee * 8}%`);
+
+    // 8. SSD 固態硬碟
+    updateCard('ssd', skills.ssd, 5, `經驗寶石與碎片吸附半徑: ${60 + skills.ssd * 30}px`);
+
+    // 9. 下課鐘聲
+    updateCard('bell', skills.bell, 5, `每 ${15 - skills.bell}s 觸發 ${(2 + skills.bell * 0.5).toFixed(1)}s 無敵金鐘罩`);
+
+    // 10. 考試小抄
+    updateCard('cheatSheet', skills.cheatSheet, 5, `暴擊率: ${skills.cheatSheet * 10}% (觸發造成 2.5 倍暴擊傷害)`);
+
+    // 11. 行動電源
+    updateCard('powerBank', skills.powerBank, 5, `最大 HP +${skills.powerBank * 30} | 立即補滿血量`);
+
+    // 12. Stack Overflow
+    updateCard('stackOverflow', skills.stackOverflow, 5, `發射分號時有 ${skills.stackOverflow * 15}% 概率雙倍多連發`);
+}
+
+function updateCard(key, level, maxLevel, text) {
+    let card = document.getElementById(`card-${key}`);
+    let lvlSpan = document.getElementById(`lvl-${key}`);
+    let descDiv = document.getElementById(`desc-${key}`);
+
+    if (level === 0) {
+        card.className = "skill-card";
+        lvlSpan.innerText = "[未解鎖]";
+        descDiv.innerText = text;
+    } else if (level >= maxLevel) {
+        card.className = "skill-card maxed";
+        lvlSpan.innerText = `MAX (Lv.${maxLevel})`;
+        descDiv.innerText = text;
+    } else {
+        card.className = "skill-card unlocked";
+        lvlSpan.innerText = `Lv.${level}`;
+        descDiv.innerText = text;
+    }
+}
+
+// --- 勝利賀卡 ---
+function triggerWin() {
+    isPaused = true;
+    document.getElementById('win-card').style.display = 'block';
+}
+
+updateSidePanels();
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
