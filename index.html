@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>-----------------------</title>
+    <title>----------------</title>
     <style>
         body {
             margin: 0;
@@ -116,22 +116,7 @@
             line-height: 1.5;
         }
 
-        /* 升級選單彈窗 */
-        #upgrade-menu {
-            display: none;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.95);
-            border: 2px solid #00ff41;
-            padding: 20px;
-            text-align: center;
-            width: 380px;
-            box-shadow: 0 0 20px #00ff41;
-            border-radius: 6px;
-        }
-
+        /* 開始選單與彈窗通用的按鈕樣式 */
         .option-btn {
             background: #111;
             color: #00ff41;
@@ -153,6 +138,39 @@
             font-weight: bold;
         }
 
+        /* 開始遊戲選單彈窗 */
+        #start-menu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #00ff41;
+            padding: 30px;
+            text-align: center;
+            width: 380px;
+            box-shadow: 0 0 25px #00ff41;
+            border-radius: 6px;
+            z-index: 10;
+        }
+
+        /* 升級選單彈窗 */
+        #upgrade-menu {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #00ff41;
+            padding: 20px;
+            text-align: center;
+            width: 380px;
+            box-shadow: 0 0 20px #00ff41;
+            border-radius: 6px;
+            z-index: 10;
+        }
+
         /* 勝利卡片 */
         #win-card {
             display: none;
@@ -167,6 +185,7 @@
             box-shadow: 0 0 30px #ff0055;
             max-width: 500px;
             border-radius: 6px;
+            z-index: 10;
         }
 
         .card-title {
@@ -242,6 +261,18 @@
             <div>HP: <span id="hp">100</span> / <span id="max-hp">100</span> | Level: <span id="level">1</span></div>
             <div>EXP: <span id="exp-current">0</span> / <span id="exp-next">10</span></div>
             <div>密碼碎片進度: [<span id="fragments">0</span> / 10] 🔒</div>
+        </div>
+
+        <!-- 開始遊戲選單 -->
+        <div id="start-menu">
+            <h2 style="color:#00ff41; margin-top:0;">BUG 救援大作戰</h2>
+            <p style="color:#ddd; font-size:13px; line-height:1.6;">
+                操作方式：使用 <b style="color:#00ff41;">W / A / S / D</b> 或 <b style="color:#00ff41;">方向鍵</b> 移動走位。<br>
+                消滅 Bug 收集碎片，解鎖最終教師節賀卡！
+            </p>
+            <button onclick="startGame()" class="option-btn" style="text-align:center; font-size:16px; margin-top:15px; font-weight:bold;">
+                ▶ 開始遊戲 (Start Game)
+            </button>
         </div>
 
         <!-- 升級選單 -->
@@ -326,7 +357,9 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 // --- 遊戲狀態 ---
-let isPaused = false;
+let isPaused = true; // 預設為暫停，等點擊開始按鈕
+let gameStarted = false; // 遊戲是否正式啟動
+
 let player = {
     x: 400, y: 300, size: 15, baseSpeed: 3.5, speed: 3.5,
     hp: 100, maxHp: 100,
@@ -366,6 +399,16 @@ let nukeActive = false;
 window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
+// --- 啟動遊戲函數 ---
+function startGame() {
+    document.getElementById('start-menu').style.display = 'none';
+    isPaused = false;
+    gameStarted = true;
+    
+    // 啟動怪物生成計時器
+    setInterval(spawnEnemy, 800);
+}
+
 // --- 時間觸發計時器 ---
 let lastShootTime = 0;
 let lastNullPointerTime = 0;
@@ -378,7 +421,7 @@ let bellTimer = 0;
 function updateSkillsTimers(now) {
     let cdReduction = 1 - (skills.coffee * 0.08);
 
-    // 1. 分號射擊 / nuke (nuke 頻率為 1.2 秒)
+    // 1. 分號射擊 / nuke
     let semicolonCd = (skills.semicolon >= 10 ? 1200 : 700) * cdReduction;
     if (now - lastShootTime >= semicolonCd) {
         shootSemicolon();
@@ -458,7 +501,6 @@ function shootSemicolon() {
                 damage: dmg, isCrit: isCrit
             });
 
-            // 雙倍發射判定 (Stack Overflow)
             if (skills.stackOverflow > 0 && Math.random() < (skills.stackOverflow * 0.15)) {
                 bullets.push({
                     x: player.x, y: player.y,
@@ -531,7 +573,7 @@ function triggerNuke() {
 
 // --- 敵人生成 ---
 function spawnEnemy() {
-    if (enemies.length > 55) return;
+    if (!gameStarted || isPaused || enemies.length > 55) return;
     let x = Math.random() < 0.5 ? -20 : canvas.width + 20;
     let y = Math.random() * canvas.height;
     let enemyMaxHp = 15 + player.level * 4;
@@ -540,14 +582,13 @@ function spawnEnemy() {
         hp: enemyMaxHp, maxHp: enemyMaxHp, text: 'BUG'
     });
 }
-setInterval(spawnEnemy, 800);
 
 // --- 遊戲主要迴圈 ---
 function gameLoop(timestamp) {
     if (!isPaused) {
         update(timestamp);
-        draw();
     }
+    draw(); // 即使暫停也持續繪製靜態畫面
     requestAnimationFrame(gameLoop);
 }
 
@@ -813,7 +854,7 @@ function draw() {
     });
 }
 
-// --- 升級系統 (精確加權抽樣機制) ---
+// --- 升級系統 ---
 function levelUp() {
     player.level++;
     player.exp = 0;
@@ -847,28 +888,24 @@ function showUpgradeMenu() {
         { key: 'stackOverflow', name: '📜 Stack Overflow 溢位', max: 5, desc: `發射分號時有 15% 概率額外多發射一組`, action: () => skills.stackOverflow++ }
     ];
 
-    // 取得所有未滿級技能
     let available = pool.filter(p => skills[p.key] < p.max);
     let choices = [];
     let tempPool = [...available];
 
-    // --- 加權輪盤不重複抽樣演算法 ---
     while (choices.length < 3 && tempPool.length > 0) {
         let totalWeight = 0;
         
-        // 1. 計算當前候選池中每個技能的動態權重
         tempPool.forEach(p => {
-            let w = 1.0; // 基礎權重
+            let w = 1.0;
             if (p.key === 'semicolon') {
-                w = 2.0; // 分號權重為 2
+                w = 2.0;
             } else if (skills[p.key] === 0) {
-                w += 0.5; // 未獲得技能 (Lv.0) 加 0.5 權重 (變成 1.5)
+                w += 0.5;
             }
             p._weight = w;
             totalWeight += w;
         });
 
-        // 2. 擲骰子取隨機數
         let rand = Math.random() * totalWeight;
         let cumulative = 0;
         let selectedIndex = 0;
@@ -881,12 +918,10 @@ function showUpgradeMenu() {
             }
         }
 
-        // 3. 選中技能並從臨時池中移除
         choices.push(tempPool[selectedIndex]);
         tempPool.splice(selectedIndex, 1);
     }
 
-    // 渲染三選一按鈕
     choices.forEach(opt => {
         let btn = document.createElement('button');
         btn.className = 'option-btn';
@@ -929,13 +964,13 @@ function updateSidePanels() {
     // 4. GOTO 語句
     updateCard('gotoStmt', skills.gotoStmt, 5, `強行擊退並傳送 Bug 至畫面最外側邊緣`);
 
-    // 5. Git Commit (更新範圍與冷卻)
+    // 5. Git Commit
     let gitCd = ((3500 - skills.gitCommit * 300) * cdReduction / 1000).toFixed(1);
     let gitRad = 60 + skills.gitCommit * 15;
     let gitDmg = 30 + skills.gitCommit * 15;
     updateCard('gitCommit', skills.gitCommit, 5, `傷害: ${gitDmg} | 範圍: ${gitRad}px | 冷卻: ${gitCd}s`);
 
-    // 6. Wi-Fi 衝擊波 (更新範圍與冷卻)
+    // 6. Wi-Fi 衝擊波
     let wifiCd = ((4500 - skills.wifiPulse * 400) * cdReduction / 1000).toFixed(1);
     let wifiRad = 100 + skills.wifiPulse * 30;
     updateCard('wifiPulse', skills.wifiPulse, 5, `最大範圍: ${wifiRad}px | 冷卻: ${wifiCd}s | 向外擴散脈衝`);
